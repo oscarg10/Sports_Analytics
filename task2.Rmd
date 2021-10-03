@@ -1,0 +1,141 @@
+---
+title: "Task 1"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Data Exploration
+
+In most data analytics projects, understanding the business case and obtaining, preparing and understanding the data takes more than 75% of the time and effort.
+
+## Initial steps
+```{r}
+#clear workspace
+rm(list = ls())
+
+```
+
+```{r}
+# Set working directory (UPDATE TO OWN WORKING DIRECTORY`)
+
+setwd("C:/Users/Oscar/Desktop/Spring 2021 Classes UMSL/SCMA 6350/Sports Analytics Project")
+
+```
+
+```{r message=FALSE}
+# Load libraries (install any if necessary via install.packages function or Tools menu)
+library(ggplot2)
+library(reshape)
+```
+
+## Data Import, Exploration, and Pre-processing
+```{r}
+# Load Data (UPDATE FILE PATH)
+mydata<-read.csv("baseballcase_data.csv",header=T)
+```
+```{r}
+# Format columns to appropriate data types
+mydata$Year <- as.factor(mydata$Year)
+unique(mydata$Pos)
+```
+Descriptive summary statistics on baseball data. Additional details can be found in the Data Glossary and on [Baseball Reference](http://www.baseball-reference.com).
+
+
+
+```{r}
+# Produce summary of entire data set 
+summary(mydata)
+```
+```{r}
+# Explore specific statistic
+
+summary(mydata$Pos)
+summary(mydata$WAR)
+```
+```{r}
+# Explore contingency table of categorical variables - Example: Count of players with various combination of statistics
+as.data.frame(table(mydata$WAR>0, mydata$New.Multiyear == 1, mydata$New.Avg.Salary.ADJ>5000000))
+```
+```{r}
+# Plot distribution of specific statistic
+boxplot(mydata$New.Avg.Salary.ADJ, horizontal=TRUE, xlab="Inflation-Adjusted New Average Salary")
+hist(mydata$New.Avg.Salary.ADJ, main="", xlab="Inflation-Adjusted New Average Salary")
+```
+```{r results='hide'}
+# Plot scatter plot of two statistics and identify specific players
+x <- mydata$RBI
+y <- mydata$New.Avg.Salary.ADJ
+lab <- mydata$Player
+plot(x,y, pch = 20, xlab="RBI", ylab="Inflation-Adjusted New Average Salary") # Update x and y labels as necessary
+identify(x, y, labels = lab, cex = 0.7) # Select points, then hit ESC to exit mode and display player names
+```
+
+```{r results='hide'}
+# Plot distribution of specific statistic by Year and identify specific players
+x <- mydata$Year
+y <- mydata$New.Avg.Salary.ADJ
+lab <- mydata$Player
+boxplot(y~x, xlab="Year", ylab="New Average Salary ADJ") # Update x and y labels as necessary
+identify(as.integer(as.factor(x)), y, labels = lab, cex = 0.7) # Select points, then hit ESC to exit mode and display player names
+```
+
+
+```{r}
+# Filter data for analysis - 1727 player-contract combinations for players with at least 130 ABs and major league contracts (SalaryADJ > 0)
+myrealdata<-mydata[which(mydata$AB>129 & mydata$SalaryADJ > 0),]
+nrow(myrealdata)
+```
+
+
+```{r warning=FALSE}
+# Determine most highly correlated statistics
+cormat <- cor(myrealdata[sapply(myrealdata, is.numeric)]) # Calculate correlation matrix for numeric columns
+write.table(data.frame(cormat), sep = ",", file = "corrmatrix.csv", row.names = TRUE) # Write to file, can use conditional formatting in Excel to identify highly correlated pairs
+
+cormat[upper.tri(cormat, diag=TRUE)] <- NA
+corlist <- melt(cormat)
+corlist <- corlist[order(- abs(corlist$value)), ]
+corlist[1:20,] # Print top 20 most correlated pairs
+write.table(corlist, sep = ",", file = "corrlist.csv", row.names = FALSE)
+```
+
+```{r}
+# Select features to exclude - Based on analysis of correlation matrix and other unusable features (e.g., team pitching and fielding stats)
+exvars <- names(myrealdata) %in% c("G", "PA", "OPS", "TB", "RAA", "WAA", "Rrep", "RAR", "SO.W", "X162WL.", "oRAR", "Salary", "Acquired", "Pos.Summary", "Outs", "AIR", "lgBA", "lgOBP", "lgSLG", "lgOPS", "BtRuns", "BtWins", "ISO", "Plays", "WPA", "RE24", "RE24.boLI", "PHlev", "cumulPA", "cumulG", "cumulOPS", "cumulTB", "avgTB", "First.Year", "Next.Salary", "Next.Salary.ADJ", "Status", "Old.Team", "New.Team", "Contract.Duration", "Contract.Value", "Year.Signed", "Last.Contract.Year", "Contract.Year", "New.Contract", "Inferred.Contract", "Multiyear.Contract", "Avg.Salary", "Avg.Salary.ADJ", "Contract.Value.ADJ", "New.Contract.Value.ADJ", "New.Multiyear", "Value", "Born", "TB_po", "G_po", "PA_po", "OPS_po", "Lg", "Div", "G_tm", "Ties", "W.L.", "Finish", "Playoffs", "BatAge", "PitchAge", "X.Bat", "X.Pitch", "Top.Player", "Top.Player.WAR", "Managers", "X2B_tm", "X3B_tm", "A", "AB_tm", "BA_tm", "BB_b", "BB.9", "BB_p", "BF", "BK", "CG_f", "CG_p", "CS_tm", "Ch", "DP", "DefEff", "E", "ER", "ERA", "ERA.", "Fld.", "GDP_tm", "GF", "GS", "H_b", "H.9", "HBP_b", "HBP_p", "HR_b", "HR.9", "HR_p", "H_p", "IBB_b", "IBB_p", "IP", "Inn",  "LOB_b", "LOB_p", "OBP_tm", "OPS_tm", "OPS._tm", "PA_tm", "PO", "R.G_p", "R.G_b", "RBI_tm", "Rdrs", "Rdrs.yr", "Rtot", "Rtot.yr", "SB_tm", "SF_tm", "SH_tm", "SLG_tm", "SO_b", "SO.9", "SO.BB_tm", "SO_p", "SV", "TB_tm", "WHIP", "WP", "cgSHO", "tmSHO")
+myrealdata <- myrealdata[ , !exvars] # Filter data
+vars <- colnames(myrealdata)
+vars # Print included features
+```
+
+```{r}
+# Replace missing playoff statistics with zeros
+myrealdata[is.na(myrealdata)] <- 0
+```
+
+```{r}
+# Replace zero salary values with ones - only needed if performing a log transformation of salary
+myrealdata$SalaryADJ[myrealdata$SalaryADJ == 0] <- 1
+```
+
+```{r}
+#create a regression line with the following variables
+lregr = lm(New.Avg.Salary.ADJ~Year + Age + R + SB + SLG + IBB + Rbaser + OWn. + Yrs + Clutch + avg2B + avgHR + League + SalaryADJ + HBP_po + RBI_po + WS + Champion + Payroll + Switch, data = myrealdata)
+summary(lregr)
+
+#Plot the regression model
+x <- mydata$RBI
+y <- mydata$New.Avg.Salary.ADJ
+
+#Plot model residuals. 
+plot(x,y, pch = 20, xlab="RBI", ylab="Inflation-Adjusted New Average Salary")
+abline(lregr)
+plot(lregr$residuals)
+```
+
+```{r}
+#predict new average salary values
+new_model <- predict(lregr, newdata = myrealdata)
+```
